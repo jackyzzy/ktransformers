@@ -122,6 +122,8 @@ struct Query {
 
   SampleOptions sample_options;
 
+  int is_abort_decode = 0;
+
   UserID user_id;
   std::optional<int> SLO_TTFT_ms;
   std::optional<int> SLO_TBT_ms;
@@ -439,6 +441,7 @@ struct QueryMaintainer : public Scheduler {
       re->block_indexes.push_back(q->block_index);
       re->sample_options.push_back(q->sample_options);
       re->stop_criteria.push_back(q->stop_criteria);
+      re->is_abort_decode_ids.push_back(q->is_abort_decode);
     }
 
     re->attn_masks = std::nullopt;
@@ -542,6 +545,26 @@ struct QueryMaintainer : public Scheduler {
       return;
     }
     query_map.erase(it);
+  }
+
+  void abort_query(QueryID id) override {
+    SPDLOG_INFO("Abort Query {}", id);
+    SPDLOG_INFO("sched:{} Abort Query", fmt::ptr(this));
+
+    // 查找 query_id 对应的 Query
+    auto it = query_map.find(id);
+    if (it == query_map.end()) {
+        SPDLOG_ERROR("Query {} is not found", id);
+        return;
+    }
+
+    // 获取对应的 Query 对象
+    auto& query = it->second;
+
+    // 设置 is_abort_decode 属性为 1
+    query->is_abort_decode = 1;
+
+    SPDLOG_INFO("Query {} is marked as aborted", id);
   }
 
   // Here this function update last batch results and get the next batch

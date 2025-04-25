@@ -411,7 +411,7 @@ async def chat_completion(request: Request, create: ChatCompletionCreate):
                 }]
                 yield chunk
 
-        return chat_stream_response(request, inner())
+        return chat_stream_response(request, inner(), id, interface)
     else:
         # non streaming response processing
         full_content = ""
@@ -505,5 +505,79 @@ async def chat_completion(request: Request, create: ChatCompletionCreate):
             "usage": usage.__dict__ if 'usage' in locals() else None,
             "system_fingerprint": f"fp_{uuid4().hex[:12]}"
         }
-
         return response
+
+@router.post('/batches/{batch_id}/cancel', tags=['openai'])
+async def abort_batch(batch_id: str):
+    """
+    取消指定的推理任务
+    """
+    interface: BackendInterfaceBase = get_interface()
+
+    # 调用后端接口取消任务
+    success = interface.abort_query(batch_id)
+
+    # 获取当前时间戳
+    current_time = int(time())
+
+    # 模拟一些固定的返回值（可以根据实际逻辑动态生成）
+    request_counts = {
+        "total": 1,
+        "completed": 1,
+        "failed": 0
+    }
+    metadata = {
+        "customer_id": "user_123456789",
+        "batch_description": "cancels an in-process batch",
+    }
+
+    if success:
+        return {
+            "id": batch_id,
+            "object": "batch",
+            "endpoint": "/v1/chat/completions",
+            "errors": None,
+            "input_file_id": 'file-abc123',
+            "completion_window": '24h',
+            "status": "cancelling",
+            "status_code": 200,
+            "output_file_id": None,
+            "error_file_id": None,
+            "created_at": 'xxxxxx',  # 任务创建时间
+            "in_progress_at": 'xxxxx',  # 任务开始时间
+            "expires_at": 'xxxxxx',  # 任务过期时间
+            "finalizing_at": None,
+            "completed_at": None,
+            "failed_at": None,
+            "expired_at": None,
+            "cancelling_at": current_time,  # 当前时间为取消时间
+            "cancelled_at": None,
+            "request_counts": request_counts,
+            "metadata": metadata
+        }
+    else:
+        return {
+            "id": batch_id,
+            "object": "batch",
+            "endpoint": "/v1/chat/completions",
+            "errors": {
+                "message": f"Batch {batch_id} could not be cancelled or was not found."
+            },
+            "input_file_id": 'file-abc123',
+            "completion_window": '24h',
+            "status": "failed",
+            "status_code": 400,
+            "output_file_id": None,
+            "error_file_id": None,
+            "created_at": 'xxxxxx',  # 任务创建时间
+            "in_progress_at": 'xxxxx',  # 任务开始时间
+            "expires_at": 'xxxxxx',  # 任务过期时间
+            "finalizing_at": None,
+            "completed_at": None,
+            "failed_at": current_time,  # 当前时间为失败时间
+            "expired_at": None,
+            "cancelling_at": None,
+            "cancelled_at": None,
+            "request_counts": request_counts,
+            "metadata": metadata
+        }

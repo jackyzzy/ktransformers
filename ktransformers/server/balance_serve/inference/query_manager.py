@@ -21,6 +21,7 @@ class QueryInfo:
     top_p: float
 
     max_length: int 
+    is_abort_decode: bool
 
     def __init__(self, id, query_length: int, max_length: int, page_size: int, device: torch.device, is_prefill: bool = True, offset: int = 0, active_position: int = 0, temperature: float = 0.01, top_p: float = 1.0):
         self.id = id
@@ -38,8 +39,14 @@ class QueryInfo:
         self.temperature = temperature
         self.top_p = top_p
 
-    def check_stop(self):
+        self.is_abort_decode = False
+
+    def check_stop(self) -> bool:
         if self.active_position >= self.max_length - 2:
+            return True
+
+        # 用户发送了终止请求
+        if self.is_abort_decode:
             return True
 
         # 遍历每个停止条件
@@ -101,6 +108,23 @@ class QueryManager:
                     if prefill_id == id:
                         self.query_map[prefill_id].active_position = s
 
+
+    def set_abort_decode(self, batch: sched_ext.BatchQueryTodo):
+        for id in range(len(batch.query_ids)):
+            query_id = batch.query_ids[id]
+            if query_id not in self.query_map:
+                print(f"query id {query_id} not found in query_map")
+                continue
+            
+            query_info = self.query_map[query_id]
+
+            # 检查 is_abort_decode_ids 并设置 is_abort_decode
+            ids_len = len(batch.is_abort_decode_ids)
+            if id < ids_len and batch.is_abort_decode_ids[id] == 1:
+                query_info.is_abort_decode = True
+            else:
+                query_info.is_abort_decode = False
+        
 
     def update(self, batch: sched_ext.BatchQueryTodo) -> list[sched_ext.QueryUpdate]:
         query_updates = []

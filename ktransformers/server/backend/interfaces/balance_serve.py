@@ -227,6 +227,7 @@ class Engine:
 
             if next_batch is not None:
                 self.query_manager.add_query(next_batch)
+                self.query_manager.set_abort_decode(next_batch)
             
             
             if self.batch is not None:
@@ -394,7 +395,31 @@ class BalanceServeInterface(BackendInterfaceBase):
         input_ids = self.tokenizer.encode(input_str, return_tensors="pt", add_special_tokens=False).to(self.args.device)
         logger.debug(f"get input ids of shape {input_ids.shape}")
         return input_ids
-    
+
+    def abort_query(self, thread_id: str) -> bool:
+        # 如果 thread_id 不在 thread_map中，说明任务已完成或不存在，直接返回False
+        if thread_id not in self.thread_map:
+            return False        
+        query_id = self.thread_map[thread_id]
+        # 如果 query_id 不在 queue_map中，说明任务已完成或不存在，直接返回False
+        if query_id not in self.queue_map:
+            return False
+        # # 如果任务已经完成，直接返回False
+        # if self.queue_map[query_id].empty():
+        #     return False
+
+        # 调用 sched_client 终止推理，并检查返回状态
+        try:
+            response = self.sched_client.abort_query(query_id)  # 假设返回的是 HTTP 响应对象
+            if response.get('status') == 'ok':
+                return True  # 推理任务成功终止
+            else:
+                print(f"Failed to abort query {query_id}: {response.json()}")
+                return False  # 推理任务未成功终止
+        except Exception as e:
+            print(f"Error while aborting query {query_id}: {e}")
+            return False  # 发生异常时返回 False
+			    
     async def inference(self, local_messages, thread_id: str, temperature: Optional[float] = None, top_p: Optional[float] = None, 
                         max_tokens: Optional[float] = None, max_completion_tokens: Optional[float] = None):
         profiler = Profiler()

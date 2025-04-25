@@ -86,6 +86,7 @@ using PrefillTask =
     std::tuple<QueryID, TokenLength, TokenLength>; // id, start, length
 
 struct BatchQueryTodo {
+  std::vector<int> is_abort_decode_ids;  // 新增属性，表示中止解码的 QueryID
   // query
   std::vector<QueryID> query_ids;
   std::vector<torch::Tensor> query_tokens;
@@ -161,6 +162,7 @@ public:
   // webserver call this
   virtual QueryID add_query(QueryAdd query) = 0;
   virtual void cancel_query(QueryID id) = 0;
+  virtual void abort_query(QueryID id) = 0;
 
   // inference loop call this
   virtual std::shared_ptr<BatchQueryTodo>

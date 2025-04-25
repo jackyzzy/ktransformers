@@ -1,7 +1,7 @@
 import asyncio
 from typing import AsyncIterable, List, Union
 
-from fastapi import Request
+from fastapi import Request, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -10,6 +10,7 @@ from ktransformers.server.schemas.endpoints.chat import ChatCompletionChunk
 from ktransformers.server.config.log import logger
 from ktransformers.server.schemas.base import Object
 from ktransformers.server.schemas.assistants.messages import ContentType, ImageFileObject, ImageUrlObject, MessageObject, Text, TextObject
+from ktransformers.server.backend.base import BackendInterfaceBase
 
 
 class TextObjectWithIndex(TextObject):
@@ -121,8 +122,18 @@ def api_stream_response(request: Request, async_events: AsyncIterable):
     return StreamingResponse(check_client_link(request, to_stream_reply(add_done(filter_api_event(async_events)))), media_type="text/event-stream")
 
 
-def chat_stream_response(request: Request, async_events: AsyncIterable):
-    return StreamingResponse(check_client_link(request, to_stream_reply(add_done(filter_chat_chunk(async_events)))), media_type="text/event-stream")
+def create_abort_task(id: str, interface: BackendInterfaceBase):
+    # abort the request if the client is disconnected.
+    async def abort_request():
+        interface.abort_request(id)
+    
+    background_tasks = BackgroundTasks()
+    background_tasks.add_task(abort_request)
+    return background_tasks
+
+
+def chat_stream_response(request: Request, async_events: AsyncIterable, id: str, interface: BackendInterfaceBase):
+    return StreamingResponse(check_client_link(request, to_stream_reply(add_done(filter_chat_chunk(async_events)))), media_type="text/event-stream", background=create_abort_task(id, interface))
 
 
 def stream_response(request: Request, async_events: AsyncIterable):

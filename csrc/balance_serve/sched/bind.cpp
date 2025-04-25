@@ -124,6 +124,7 @@ PYBIND11_MODULE(sched_ext, m) {
       .def_readwrite("decode_mini_batches",
                      &scheduler::BatchQueryTodo::decode_mini_batches)
       .def_readwrite("stop_criteria", &scheduler::BatchQueryTodo::stop_criteria)
+      .def_readwrite("is_abort_decode_ids", &scheduler::BatchQueryTodo::is_abort_decode_ids)
       .def("debug", &scheduler::BatchQueryTodo::debug)
       .def(py::pickle(
           [](const scheduler::BatchQueryTodo &self) {
@@ -131,10 +132,10 @@ PYBIND11_MODULE(sched_ext, m) {
                 self.query_ids, self.query_tokens, self.query_lengths,
                 self.block_indexes, self.attn_masks, self.rope_ranges,
                 self.sample_options, self.prefill_mini_batches,
-                self.decode_mini_batches, self.stop_criteria);
+                self.decode_mini_batches, self.stop_criteria, self.is_abort_decode_ids);
           },
           [](py::tuple t) {
-            if (t.size() != 10)
+            if (t.size() != 11)
               throw std::runtime_error("Invalid state! t.size() = " +
                                        std::to_string(t.size()));
             scheduler::BatchQueryTodo bqt;
@@ -153,6 +154,7 @@ PYBIND11_MODULE(sched_ext, m) {
                 t[8].cast<std::vector<std::vector<scheduler::QueryID>>>();
             bqt.stop_criteria =
                 t[9].cast<std::vector<std::vector<std::vector<int>>>>();
+            bqt.is_abort_decode_ids = t[10].cast<std::vector<int>>();
             return bqt;
           }));
 
@@ -239,6 +241,8 @@ PYBIND11_MODULE(sched_ext, m) {
            py::call_guard<py::gil_scoped_release>())
       .def("cancel_query", &scheduler::Scheduler::cancel_query,
            py::call_guard<py::gil_scoped_release>())
+      .def("abort_query", &scheduler::Scheduler::abort_query, 
+	       py::call_guard<py::gil_scoped_release>())
       .def("update_last_batch", &scheduler::Scheduler::update_last_batch,
            py::call_guard<py::gil_scoped_release>())
       .def("get_inference_context",
