@@ -36,6 +36,11 @@ class BackendInterfaceBase:
     def __init__(self, args:ConfigArgs = default_args):
         raise NotImplementedError
 
+    def abort_queue(self, thread_id: str):
+        '''
+        abort the queue of this thread
+        '''
+        return True
     
     async def inference(self,local_messages,request_unique_id:Optional[str])->AsyncIterator[str]:
         '''
